@@ -3,7 +3,7 @@ package ring_test
 import (
 	"fmt"
 
-	"github.com/xuoe/ring"
+	"github.com/xuoe/go-ring"
 )
 
 func Example_reverseIterate() {

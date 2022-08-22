@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/xuoe/ring"
+	"github.com/xuoe/go-ring"
 )
 
 func TestPush(t *testing.T) {

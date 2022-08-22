@@ -1,4 +1,4 @@
-// Package ring provides a ring buffer implementation.
+// Package ring provides a generic ring buffer implementation.
 package ring
 
 // New creates a ring buffer of the given capacity. It panics if capacity <= 0.

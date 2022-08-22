@@ -1,3 +1,3 @@
-module github.com/xuoe/ring
+module github.com/xuoe/go-ring
 
 go 1.18
