@@ -28,8 +28,21 @@ type Buffer[T any] struct {
 	idx, off int
 }
 
-// Push pushes value v onto the buffer, discarding and returning the value
-// at the tail end of the buffer, if any.
+// ToSlice allocates and returns a slice of the buffer values. If the buffer
+// length is 0, the returned slice is nil.
+func (b *Buffer[T]) ToSlice() []T {
+	if b.size == 0 {
+		return nil
+	}
+	res := make([]T, b.size)
+	for i := 0; i < b.size; i++ {
+		res[i] = b.Get(i)
+	}
+	return res
+}
+
+// Push pushes value v onto the buffer. If the buffer is full, it discards and
+// returns the value at the tail end.
 func (b *Buffer[T]) Push(v T) (T, bool) {
 	ov := b.vals[b.idx]
 	b.vals[b.idx] = v
