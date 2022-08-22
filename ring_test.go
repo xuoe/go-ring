@@ -53,6 +53,132 @@ func TestPush(t *testing.T) {
 	}
 }
 
+func TestPop(t *testing.T) {
+	for i, test := range []struct {
+		size int
+		push []int
+		pop  []int
+	}{
+		{
+			5,
+			[]int{3, 2, 1, 10, 2},
+			[]int{3, 2, 1},
+		},
+		{
+			3,
+			[]int{3, 2, 1},
+			[]int{3, 2, 1, 0, 0, 0},
+		},
+		{
+			5,
+			[]int{3, 2, 1},
+			[]int{3, 2, 1, 0, 0, 0},
+		},
+	} {
+		t.Run(strconv.Itoa(i+1), func(t *testing.T) {
+			b := ring.New[int](test.size)
+			for _, v := range test.push {
+				b.Push(v)
+			}
+			for i := 0; i < len(test.pop); i++ {
+				v, ok := b.Pop()
+				if exp, got := test.pop[i], v; exp != got {
+					t.Errorf("%d: Pop() value: -%d +%d", i, exp, got)
+				}
+				if i >= test.size {
+					if exp, got := false, ok; exp != got {
+						t.Errorf("%d: Pop() ok: -%t +%t", i, exp, got)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestHeadTail(t *testing.T) {
+	b := ring.New[int](3)
+	for i, test := range []struct {
+		do   func()
+		head int
+		tail int
+		size int
+	}{
+		{
+			do:   func() { b.Push(1) },
+			head: 1,
+			tail: 1,
+			size: 1,
+		},
+		{
+			do:   func() { b.Push(2) },
+			head: 2,
+			tail: 1,
+			size: 2,
+		},
+		{
+			do:   func() { b.Push(3) },
+			head: 3,
+			tail: 1,
+			size: 3,
+		},
+		{
+			do:   func() { b.Push(4) },
+			head: 4,
+			tail: 2,
+			size: 3,
+		},
+		{
+			do:   func() { b.Push(5) },
+			head: 5,
+			tail: 3,
+			size: 3,
+		},
+		{
+			do:   func() { b.Pop() },
+			head: 5,
+			tail: 4,
+			size: 2,
+		},
+		{
+			do:   func() { b.Pop() },
+			head: 5,
+			tail: 5,
+			size: 1,
+		},
+		{
+			do:   func() { b.Pop() },
+			head: 0,
+			tail: 0,
+			size: 0,
+		},
+	} {
+		t.Run(strconv.Itoa(i+1), func(t *testing.T) {
+			test.do()
+			{
+				exp := test.head
+				got, _ := b.Head()
+				if exp != got {
+					t.Errorf("Head(): -%d +%d", exp, got)
+				}
+			}
+			{
+				exp := test.tail
+				got, _ := b.Tail()
+				if exp != got {
+					t.Errorf("Tail(): -%d +%d", exp, got)
+				}
+			}
+			{
+				exp := test.size
+				got := b.Len()
+				if exp != got {
+					t.Errorf("Len(): -%d +%d", exp, got)
+				}
+			}
+		})
+	}
+}
+
 func TestOffset(t *testing.T) {
 	type value struct {
 		int
@@ -73,19 +199,19 @@ func TestOffset(t *testing.T) {
 		{
 			func() { b.Push(1) },
 			value{1, true},
-			value{0, false},
+			value{1, true},
 			0,
 		},
 		{
 			func() { b.Push(2) },
 			value{2, true},
-			value{0, false},
+			value{1, true},
 			0,
 		},
 		{
 			func() { b.Push(3) },
 			value{3, true},
-			value{0, false},
+			value{1, true},
 			0,
 		},
 		{
@@ -112,6 +238,12 @@ func TestOffset(t *testing.T) {
 			value{1, true},
 			0,
 		},
+		{
+			func() { b.SetOffset(-1); b.Pop() },
+			value{3, true},
+			value{2, true},
+			1,
+		},
 	} {
 		t.Run(strconv.Itoa(i+1), func(t *testing.T) {
 			test.op()
@@ -129,6 +261,13 @@ func TestOffset(t *testing.T) {
 				got := value{v, ok}
 				if exp != got {
 					t.Errorf("tail: %v -%v", got, exp)
+				}
+			}
+			{
+				exp := test.off
+				got := b.Offset()
+				if exp != got {
+					t.Errorf("offset: %v -%v", got, exp)
 				}
 			}
 		})

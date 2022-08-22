@@ -54,15 +54,41 @@ func (b *Buffer[T]) Push(v T) (T, bool) {
 	return ov, full
 }
 
-// Head returns the value at the offset-adjusted buffer head, if any.
-func (b *Buffer[T]) Head() (T, bool) {
-	idx := (b.idx + b.off - 1 + len(b.vals)) % len(b.vals)
-	return b.vals[idx], b.size > 0
+// Pop removes the value at the tail end, if any.
+func (b *Buffer[T]) Pop() (T, bool) {
+	v, ok := b.Tail()
+	if ok {
+		b.size--
+	}
+	return v, ok
 }
 
-// Tail returns the value at the tail end of the buffer, if any.
-func (b *Buffer[T]) Tail() (T, bool) {
-	return b.vals[b.idx], b.size == len(b.vals)
+// Get returns the value at the given index. It panics if the buffer is empty
+// or if the index falls outside of buffer range.
+func (b *Buffer[T]) Get(idx int) T {
+	if idx >= b.size || idx < 0 {
+		panic("ring: index out of bounds")
+	}
+	idx = (b.idx - b.size + idx + len(b.vals)) % len(b.vals)
+	return b.vals[idx]
+}
+
+// Head returns the value at the offset-adjusted buffer head, if any.
+func (b *Buffer[T]) Head() (v T, ok bool) {
+	if ok = b.size > 0; !ok {
+		return
+	}
+	v = b.Get(b.Len() - 1 + b.off)
+	return
+}
+
+// Tail returns the value at the tail end of the buffer, if any,
+func (b *Buffer[T]) Tail() (v T, ok bool) {
+	if ok = b.size > 0; !ok {
+		return
+	}
+	v = b.Get(0)
+	return
 }
 
 // SetOffset adjusts the buffer head to point to older values (n < 0) or to
@@ -87,6 +113,9 @@ func (b *Buffer[T]) Offset() int {
 
 // Len returns the buffer length.
 func (b *Buffer[T]) Len() int { return b.size }
+
+// Cap returns the buffer capacity.
+func (b *Buffer[T]) Cap() int { return len(b.vals) }
 
 // Full reports whether the buffer is full.
 func (b *Buffer[T]) Full() bool { return b.size == len(b.vals) }
