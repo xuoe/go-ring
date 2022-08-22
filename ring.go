@@ -1,18 +1,22 @@
+// Package ring provides a ring buffer implementation.
 package ring
 
-// New creates a ring buffer of the given size. It panics if size < 0.
-func New[T any](size int) *Buffer[T] {
-	if size < 0 {
-		panic("ring: new buffer size < 0")
+// New creates a ring buffer of the given capacity. It panics if capacity <= 0.
+func New[T any](capacity int) *Buffer[T] {
+	if capacity <= 0 {
+		panic("ring: new buffer capacity <= 0")
 	}
 	return &Buffer[T]{
-		vals: make([]T, size),
+		vals: make([]T, capacity),
 	}
 }
 
 // FromSlice creates a ring buffer with the values of s, allocating a new slice
-// to hold them.
+// to hold them. It panics if len(s) == 0 or if s is nil.
 func FromSlice[T any](s []T) *Buffer[T] {
+	if len(s) == 0 {
+		panic("ring: new buffer from empty/nil slice")
+	}
 	vals := make([]T, len(s))
 	copy(vals, s)
 	return &Buffer[T]{
@@ -21,7 +25,7 @@ func FromSlice[T any](s []T) *Buffer[T] {
 	}
 }
 
-// Buffer is a ring buffer.
+// Buffer is a ring buffer backed by a slice.
 type Buffer[T any] struct {
 	vals     []T
 	size     int
@@ -48,7 +52,7 @@ func (b *Buffer[T]) Push(v T) (T, bool) {
 	b.vals[b.idx] = v
 	b.idx = (b.idx + 1) % len(b.vals)
 	full := b.size == len(b.vals)
-	if b.size < len(b.vals) {
+	if !full {
 		b.size++
 	}
 	return ov, full
@@ -94,6 +98,9 @@ func (b *Buffer[T]) Tail() (v T, ok bool) {
 // SetOffset adjusts the buffer head to point to older values (n < 0) or to
 // more recent ones (n > 0). If n is 0, the buffer head is reset to point to
 // the latest value. It panics if the offset falls outside buffer range.
+//
+// Adjusting the offset allows to temporarily keep -n head values from being
+// pushed over.
 func (b *Buffer[T]) SetOffset(n int) {
 	b.off += n
 	if n == 0 {
