@@ -381,3 +381,36 @@ func TestFromSlice(t *testing.T) {
 		}
 	}
 }
+
+func TestFromSlicePanic(t *testing.T) {
+	mustPanic(t, "nil", func() { ring.FromSlice[int](nil) })
+	mustPanic(t, "zero cap", func() { ring.FromSlice[int]([]int{}) })
+	mustntPanic(t, "cap 1 len 1", func() { ring.FromSlice[int]([]int{1}) })
+	mustntPanic(t, "cap 1 len 0", func() { ring.FromSlice[int]([]int{1, 2}[:0]) })
+}
+
+func TestWrapSlicePanic(t *testing.T) {
+	mustPanic(t, "nil", func() { ring.WrapSlice[int](nil) })
+	mustPanic(t, "zero cap", func() { ring.WrapSlice[int]([]int{}) })
+	mustntPanic(t, "cap 1 len 1", func() { ring.WrapSlice[int]([]int{1}) })
+	mustntPanic(t, "cap 1 len 0", func() { ring.WrapSlice[int]([]int{1, 2}[:0]) })
+}
+
+func mustPanic(t *testing.T, name string, fn func()) {
+	t.Run(name, func(t *testing.T) {
+		defer func() { recover() }()
+		fn()
+		t.Fatal("expected panic")
+	})
+}
+
+func mustntPanic(t *testing.T, name string, fn func()) {
+	t.Run(name, func(t *testing.T) {
+		defer func() {
+			if v := recover(); v != nil {
+				t.Fatalf("panicked: %v", v)
+			}
+		}()
+		fn()
+	})
+}

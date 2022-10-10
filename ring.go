@@ -29,7 +29,15 @@ func FromSlice[T any](vals []T) *Buffer[T] {
 	copy(ours, vals)
 	return wrapSlice(ours)
 }
+
+// WrapSlice is like FromSlice() except it takes ownership of the value slice
+// instead of allocating a private copy.
+func WrapSlice[T any](vals []T) *Buffer[T] {
+	if cap(vals) == 0 {
+		panic("ring.WrapSlice: empty/nil slice")
 	}
+	return wrapSlice(vals)
+}
 
 func wrapSlice[T any](vals []T) *Buffer[T] {
 	return &Buffer[T]{
