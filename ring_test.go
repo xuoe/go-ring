@@ -1,6 +1,7 @@
 package ring_test
 
 import (
+	"reflect"
 	"strconv"
 	"testing"
 
@@ -323,6 +324,18 @@ func TestFullEmptyLen(t *testing.T) {
 				t.Errorf("full: %v -%v", got, exp)
 			}
 		})
+	}
+}
+
+func TestToSlice(t *testing.T) {
+	vals := []int{1, 2, 3, 4, 5}
+	b := ring.FromSlice(vals)
+	for _, v := range vals {
+		b.Push(v)
+	}
+	exp, got := vals, b.ToSlice()
+	if !reflect.DeepEqual(exp, got) {
+		t.Errorf("-%v +%v", exp, got)
 	}
 }
 
