@@ -1,26 +1,39 @@
 // Package ring provides a generic ring buffer implementation.
+//
+// The ring buffer is a FIFO queue with limited capacity. Once the capacity is
+// reached, values are discarded from the tail end of the buffer to accommodate
+// the ones being pushed at the head, the other end.
+//
+// Values can be pushed, popped and retrieved (from any index) in O(1) time.
 package ring
 
-// New creates a ring buffer of the given capacity. It panics if capacity <= 0.
+// New creates an empty ring buffer of the given capacity. It panics if
+// capacity <= 0.
 func New[T any](capacity int) *Buffer[T] {
 	if capacity <= 0 {
-		panic("ring: new buffer capacity <= 0")
+		panic("ring.New: capacity <= 0")
 	}
 	return &Buffer[T]{
 		vals: make([]T, capacity),
 	}
 }
 
-// FromSlice creates a ring buffer with the values of s, allocating a new slice
-// to hold them. It panics if len(s) == 0 or if s is nil.
-func FromSlice[T any](s []T) *Buffer[T] {
-	if len(s) == 0 {
-		panic("ring: new buffer from empty/nil slice")
+// FromSlice creates a ring buffer out of the given value slice, allocating
+// a new slice to hold the values. It panics if cap(vals) == 0 (or if vals ==
+// nil).
+func FromSlice[T any](vals []T) *Buffer[T] {
+	if cap(vals) == 0 {
+		panic("ring.FromSlice: empty/nil slice")
 	}
-	vals := make([]T, len(s))
-	copy(vals, s)
+	ours := make([]T, cap(vals))
+	copy(ours, vals)
+	return wrapSlice(ours)
+}
+	}
+
+func wrapSlice[T any](vals []T) *Buffer[T] {
 	return &Buffer[T]{
-		vals: vals,
+		vals: vals[:cap(vals)],
 		size: len(vals),
 	}
 }
@@ -30,6 +43,7 @@ type Buffer[T any] struct {
 	vals     []T
 	size     int
 	idx, off int
+	zero     T
 }
 
 // ToSlice allocates and returns a slice of the buffer values. If the buffer
@@ -45,83 +59,81 @@ func (b *Buffer[T]) ToSlice() []T {
 	return res
 }
 
-// Push pushes value v onto the buffer. If the buffer is full, it discards and
-// returns the value at the tail end.
-func (b *Buffer[T]) Push(v T) (T, bool) {
-	ov := b.vals[b.idx]
-	b.vals[b.idx] = v
+// Push pushes value val onto the buffer. If full == true, tail holds the value
+// at the tail end of the buffer, which has been discarded to make room for
+// val; otherwise, if full == false, tail holds the zero value of T.
+func (b *Buffer[T]) Push(val T) (tail T, full bool) {
+	tail = b.vals[b.idx]
+	b.vals[b.idx] = val
 	b.idx = (b.idx + 1) % len(b.vals)
-	full := b.size == len(b.vals)
+	full = b.size == len(b.vals)
 	if !full {
+		tail = b.zero
 		b.size++
 	}
-	return ov, full
+	return tail, full
 }
 
 // Pop removes the value at the tail end, if any.
 func (b *Buffer[T]) Pop() (T, bool) {
-	v, ok := b.Tail()
+	val, ok := b.Tail()
 	if ok {
 		b.size--
 	}
-	return v, ok
+	return val, ok
 }
 
-// Get returns the value at the given index. It panics if the buffer is empty
-// or if the index falls outside of buffer range.
+// Get returns the value at the given index idx. It panics if the buffer is
+// empty or if the index falls outside buffer range.
 func (b *Buffer[T]) Get(idx int) T {
 	if idx >= b.size || idx < 0 {
-		panic("ring: index out of bounds")
+		panic("ring.Get: index out of bounds")
 	}
 	idx = (b.idx - b.size + idx + len(b.vals)) % len(b.vals)
 	return b.vals[idx]
 }
 
 // Head returns the value at the offset-adjusted buffer head, if any.
-func (b *Buffer[T]) Head() (v T, ok bool) {
-	if ok = b.size > 0; !ok {
-		return
+func (b *Buffer[T]) Head() (T, bool) {
+	if b.size > 0 {
+		return b.Get(b.Len() - 1 + b.off), true
 	}
-	v = b.Get(b.Len() - 1 + b.off)
-	return
+	return b.zero, false
 }
 
-// Tail returns the value at the tail end of the buffer, if any,
-func (b *Buffer[T]) Tail() (v T, ok bool) {
-	if ok = b.size > 0; !ok {
-		return
+// Tail returns the value at the tail end of the buffer, if any.
+func (b *Buffer[T]) Tail() (T, bool) {
+	if b.size > 0 {
+		return b.Get(0), true
 	}
-	v = b.Get(0)
-	return
+	return b.zero, false
 }
 
-// SetOffset adjusts the buffer head to point to older values (n < 0) or to
-// more recent ones (n > 0). If n is 0, the buffer head is reset to point to
-// the latest value. It panics if the offset falls outside buffer range.
+// SetOffset adjusts the buffer head to point to older values (n < 0),
+// effectively ignoring the last n values, or to more recent ones (n > 0), if
+// already adjusted. If n == 0, the buffer head is reset to point to the last
+// pushed value. It panics if the offset falls outside buffer range.
 //
-// Adjusting the offset allows to temporarily keep -n head values from being
-// pushed over.
+// Note that SetOffset(Offset()) is equivalent to SetOffset(0), regardless of
+// the result of Offset().
 func (b *Buffer[T]) SetOffset(n int) {
 	b.off += n
 	if n == 0 {
 		b.off = 0
 	}
 	if b.off > 0 || b.off <= -b.size {
-		panic("ring: buffer head out of bounds")
+		panic("ring.SetOffset: buffer head out of bounds")
 	}
 }
 
-// Offset returns the buffer head offset.
-//
-// Calling SetOffset with the result of Offset() is equivalent to SetOffset(0).
-func (b *Buffer[T]) Offset() int {
-	return -b.off
-}
+// Offset returns the buffer head offset, where 0 indicates no offset.
+func (b *Buffer[T]) Offset() int { return -b.off }
 
 // Len returns the buffer length.
 func (b *Buffer[T]) Len() int { return b.size }
 
-// Cap returns the buffer capacity.
+// Cap returns the buffer capacity, i.e., the maximum number of values the
+// buffer can hold without discarding older ones.
 func (b *Buffer[T]) Cap() int { return len(b.vals) }
 
 // Full reports whether the buffer is full.
